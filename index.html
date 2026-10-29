@@ -1,0 +1,104 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ashik Photo Editor</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#101322;color:white;text-align:center}
+header{padding:24px 12px;background:#1c2140}
+h1{margin:0;color:#a99bff}
+p{color:#ddd}
+main{max-width:600px;margin:20px auto;padding:16px}
+.panel{background:#202640;padding:18px;border-radius:18px}
+input,button{margin:9px 0}
+input[type=file]{width:100%;padding:12px;background:#fff;color:#111;border-radius:10px}
+canvas{display:block;width:100%;height:auto;margin:16px auto;border-radius:12px;background:#101322}
+label{display:block;text-align:left;margin-top:16px}
+input[type=range]{width:100%}
+button{border:0;border-radius:10px;padding:13px 18px;font-size:15px;font-weight:bold;cursor:pointer}
+.primary{background:#8270ff;color:white}
+.secondary{background:#343b5b;color:white}
+.actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+footer{padding:20px;color:#aaa}
+</style>
+</head>
+<body>
+<header>
+<h1>✨ Ashik Photo Editor</h1>
+<p>তোমার ছবি, তোমার স্টাইল!</p>
+</header>
+<main>
+<div class="panel">
+<h2>📸 ছবি এডিট করো</h2>
+<input type="file" id="upload" accept="image/*">
+<canvas id="canvas"></canvas>
+<label>☀️ উজ্জ্বলতা</label>
+<input type="range" id="brightness" min="50" max="200" value="100">
+<label>🎨 কনট্রাস্ট</label>
+<input type="range" id="contrast" min="50" max="200" value="100">
+<label>🌈 স্যাচুরেশন</label>
+<input type="range" id="saturation" min="0" max="200" value="100">
+<div class="actions">
+<button class="secondary" onclick="filter('none')">Original</button>
+<button class="secondary" onclick="filter('grayscale(100%)')">B&W</button>
+<button class="secondary" onclick="filter('sepia(80%)')">Vintage</button>
+<button class="secondary" onclick="filter('saturate(160%)')">Color</button>
+</div>
+<div class="actions">
+<button class="primary" onclick="downloadImage()">⬇️ ছবি ডাউনলোড</button>
+<button class="secondary" onclick="resetEditor()">Reset</button>
+</div>
+</div>
+</main>
+<footer>Made with ❤️ by Ashik</footer>
+<script>
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const upload=document.getElementById('upload');
+const brightness=document.getElementById('brightness');
+const contrast=document.getElementById('contrast');
+const saturation=document.getElementById('saturation');
+let photo=new Image();
+let chosenFilter='none';
+upload.addEventListener('change',e=>{
+const file=e.target.files[0];
+if(!file)return;
+if(!file.type.startsWith('image/'))return alert('একটি ছবি নির্বাচন করো');
+const url=URL.createObjectURL(file);
+photo.onload=()=>{
+const scale=Math.min(1200/photo.width,1200/photo.height,1);
+canvas.width=Math.round(photo.width*scale);
+canvas.height=Math.round(photo.height*scale);
+draw();
+URL.revokeObjectURL(url);
+};
+photo.src=url;
+});
+function filter(value){chosenFilter=value;draw()}
+function draw(){
+if(!photo.complete||!photo.naturalWidth)return;
+ctx.filter=`brightness(${brightness.value}%) contrast(${contrast.value}%) saturate(${saturation.value}%) ${chosenFilter}`;
+ctx.drawImage(photo,0,0,canvas.width,canvas.height);
+ctx.filter='none';
+}
+[brightness,contrast,saturation].forEach(el=>el.addEventListener('input',draw));
+function resetEditor(){
+brightness.value=100;
+contrast.value=100;
+saturation.value=100;
+chosenFilter='none';
+draw();
+}
+function downloadImage(){
+if(!photo.naturalWidth)return alert('আগে একটি ছবি আপলোড করো');
+const a=document.createElement('a');
+a.download='ashik-edited-photo.png';
+a.href=canvas.toDataURL('image/png');
+a.click();
+}
+</script>
+</body>
+</html>
