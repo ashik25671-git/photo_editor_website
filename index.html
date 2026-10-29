@@ -3,6 +3,230 @@
 <html lang="bn">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photo Editor Pro</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101827;color:#fff;font-family:Arial,sans-serif}
+header{background:#202d43;padding:20px;text-align:center}
+h1{margin:0;color:#8dbbff;font-size:25px}
+main{max-width:650px;margin:auto;padding:16px}
+.panel{background:#1c283b;padding:16px;border-radius:14px;margin-bottom:16px}
+label{display:block;margin:14px 0 8px}
+input,button{width:100%;padding:12px;border-radius:8px;margin:6px 0}
+input{background:#fff;color:#111}
+button{border:0;background:#3984f6;color:white;font-size:16px;font-weight:bold}
+button:disabled{opacity:.5}
+.secondary{background:#34445d}
+canvas{width:100%;height:auto;background:#ddd;border-radius:8px}
+#status{color:#b9d7ff;line-height:1.6}
+.small{font-size:13px;color:#bdc8d9}
+</style>
+</head>
+<body>
+<header>
+<h1>📸 Photo Editor Pro</h1>
+<p>ব্যাকগ্রাউন্ড বদলাও নিজের মতো</p>
+</header>
+
+<main>
+<div class="panel">
+<label>১. তোমার ছবি নির্বাচন করো</label>
+<input id="photo" type="file" accept="image/*">
+
+<button id="remove">✨ অটোমেটিক ব্যাকগ্রাউন্ড রিমুভ</button>
+<p id="status">প্রথমে একটি ছবি নির্বাচন করো।</p>
+</div>
+
+<div class="panel">
+<label>২. নতুন ব্যাকগ্রাউন্ডের ছবি দাও</label>
+<input id="background" type="file" accept="image/*">
+
+<label>অথবা ব্যাকগ্রাউন্ডের রং বেছে নাও</label>
+<input id="bgColor" type="color" value="#66bbff">
+
+<button id="apply" class="secondary">ব্যাকগ্রাউন্ড লাগাও</button>
+</div>
+
+<div class="panel">
+<h3>তোমার এডিট করা ছবি</h3>
+<canvas id="canvas" width="600" height="600"></canvas>
+<button id="download">⬇️ PNG ডাউনলোড</button>
+<p class="small">স্বচ্ছ ব্যাকগ্রাউন্ড রিমুভের পর রং অথবা নিজের ছবি ব্যবহার করো।</p>
+</div>
+</main>
+
+<script type="module">
+import removeBackground from
+"https://esm.sh/@imgly/background-removal@1.5.5";
+
+const photo = document.getElementById("photo");
+const bg = document.getElementById("background");
+const color = document.getElementById("bgColor");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const status = document.getElementById("status");
+const removeBtn = document.getElementById("remove");
+const applyBtn = document.getElementById("apply");
+const downloadBtn = document.getElementById("download");
+
+let original = null;
+let cutout = null;
+let backgroundImage = null;
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("ছবিটি খোলা যায়নি।"));
+    };
+    img.src = url;
+  });
+}
+
+function drawCover(img) {
+  const scale = Math.max(
+    canvas.width / img.width,
+    canvas.height / img.height
+  );
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.drawImage(
+    img, (canvas.width-w)/2,
+    (canvas.height-h)/2, w, h
+  );
+}
+
+function render() {
+  if (!original && !cutout) return;
+
+  canvas.width = cutout ? cutout.width : original.width;
+  canvas.height = cutout ? cutout.height : original.height;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (backgroundImage) {
+    drawCover(backgroundImage);
+  } else {
+    ctx.fillStyle = color.value;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  ctx.drawImage(cutout || original, 0, 0);
+}
+
+photo.addEventListener("change", async () => {
+  const file = photo.files[0];
+  if (!file) return;
+
+  try {
+    original = await loadImage(file);
+    cutout = null;
+    backgroundImage = null;
+    bg.value = "";
+    render();
+    status.textContent =
+      "ছবি প্রস্তুত। এবার ব্যাকগ্রাউন্ড রিমুভ করো।";
+  } catch (e) {
+    status.textContent = e.message;
+  }
+});
+
+bg.addEventListener("change", async () => {
+  const file = bg.files[0];
+  if (!file) return;
+
+  try {
+    backgroundImage = await loadImage(file);
+    if (original || cutout) render();
+    status.textContent = "নতুন ব্যাকগ্রাউন্ড ছবি নির্বাচিত হয়েছে।";
+  } catch (e) {
+    status.textContent = e.message;
+  }
+});
+
+removeBtn.addEventListener("click", async () => {
+  const file = photo.files[0];
+  if (!file) {
+    status.textContent = "আগে নিজের ছবি নির্বাচন করো।";
+    return;
+  }
+
+  removeBtn.disabled = true;
+  status.textContent =
+    "AI দিয়ে ব্যাকগ্রাউন্ড সরানো হচ্ছে। অপেক্ষা করো...";
+
+  try {
+    const result = await removeBackground(file, {
+      progress: (key, current, total) => {
+        if (total) {
+          status.textContent =
+            "প্রসেসিং চলছে: " +
+            Math.round(current / total * 100) + "%";
+        }
+      }
+    });
+
+    cutout = await loadImage(result);
+    render();
+    status.textContent =
+      "ব্যাকগ্রাউন্ড রিমুভ হয়েছে! এখন নতুন রং বা ছবি বেছে নাও।";
+  } catch (e) {
+    console.error(e);
+    status.textContent =
+      "সমস্যা হয়েছে। ইন্টারনেট, ব্রাউজার এবং মডেল ডাউনলোড পরীক্ষা করো।";
+  } finally {
+    removeBtn.disabled = false;
+  }
+});
+
+applyBtn.addEventListener("click", () => {
+  if (!original && !cutout) {
+    status.textContent = "আগে একটি ছবি নির্বাচন করো।";
+    return;
+  }
+  render();
+  status.textContent = "নতুন ব্যাকগ্রাউন্ড লাগানো হয়েছে।";
+});
+
+color.addEventListener("input", () => {
+  if (original || cutout) render();
+});
+
+downloadBtn.addEventListener("click", () => {
+  if (!original && !cutout) {
+    status.textContent = "আগে একটি ছবি নির্বাচন করো।";
+    return;
+  }
+
+  canvas.toBlob(blob => {
+    if (!blob) {
+      status.textContent = "ছবি তৈরি করা যায়নি।";
+      return;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "edited-photo.png";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }, "image/png");
+});
+</script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ashik Photo Editor</title>
 <style>
